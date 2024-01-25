@@ -79,8 +79,14 @@ class OnceoverFormatter
   # This method takes a notification and formats it into a hash that can be
   # printed easily
   def extract_failures notification
-    # Group by role
-    grouped = notification.failed_examples.group_by { |e| e.metadata[:example_group][:parent_example_group][:description]}
+    # Group by role if it has one
+    grouped = notification.failed_examples.group_by do |e|
+      if e.metadata[:example_group][:parent_example_group].nil?
+        e.metadata[:example_group][:description]
+      else
+        e.metadata[:example_group][:parent_example_group][:description]
+      end
+    end
 
     # Further group by error
     grouped.each do |role, failures|
@@ -96,16 +102,18 @@ class OnceoverFormatter
   end
   # rubocop:enable Style/CombinableLoops
 
-  # Extaracts data out of RSpec failres
+  # Extracts data out of RSpec failures
   def extract_failure_data(fails)
-    # The only difference between these failures should be the factsets that it
+    # Generally, the only difference between these failures should be the factsets that it
     # failed on. Extract that list then just use the first failure for the rest
     # of the data as it should be the same
-    metadata          = fails[0].metadata
-    raw_error         = metadata[:execution_result].exception.to_s
-    factsets          = fails.map { |f| f.metadata[:example_group][:description].gsub('using fact set ','') }
-    results           = parse_errors(raw_error)
-    # Add the details of the factsets tio each result
+    metadata  = fails[0].metadata
+    raw_error = metadata[:execution_result].exception.to_s
+    results   = parse_errors(raw_error)
+    unless metadata[:example_group][:parent_example_group].nil?
+      factsets = fails.map { |f| f.metadata[:example_group][:description].gsub('using fact set ','') }
+    end
+    # Add the details of the factsets to each result
     results.map do |r|
       r[:factsets] = factsets
       r
