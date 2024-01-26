@@ -32,6 +32,7 @@ class OnceoverFormatter
 
         # Calculate the padding required
         padding = (longest_group - role.length) + 1
+        padding += 2 unless role.include?(':')
         # Create padding
         padding.times { @output << ' ' }
 
