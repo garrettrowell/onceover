@@ -26,19 +26,24 @@ class Onceover
 
     attr_reader :vendored_references, :missing_vendored
 
-    def initialize
+    def initialize(repo = Onceover::Controlrepo.new)
       @puppet_version = Puppet.version
       @missing_vendored = []
 
+      @vend_tmpdir = File.join(repo.tempdir, 'vendored_modules')
+      unless File.directory?(@vend_tmpdir)
+        logger.debug "Creating #{@vend_tmpdir}"
+        FileUtils.mkdir_p(@vend_tmpdir)
+      end
       # get the entire file tree of the puppetlabs/puppet-agent repository
-      puppet_agent_tree = query_or_cache("https://api.github.com/repos/puppetlabs/puppet-agent/git/trees/#{@puppet_version}", { :recursive => true }, 'files.json')
+      puppet_agent_tree = query_or_cache("https://api.github.com/repos/puppetlabs/puppet-agent/git/trees/#{@puppet_version}", { :recursive => true }, File.join(@vend_tmpdir, "puppet_agent_tree-#{@puppet_version}.json"))
       # get only the module-puppetlabs-<something>_core.json component files
       vendored_components =  puppet_agent_tree['tree'].select { |file| /configs\/components\/module-puppetlabs-\w+\.json/.match(file['path']) }
       # get the contents of each component file
       @vendored_references = vendored_components.map do |component|
         mod_slug = component['path'].match(/.*(puppetlabs-\w+).json$/)[1]
         mod_name = mod_slug.match(/puppetlabs-(\w+)/)[1]
-        encoded_info = query_or_cache(component['url'], nil, "#{mod_name}.json")
+        encoded_info = query_or_cache(component['url'], nil, File.join(@vend_tmpdir, "puppet-#{@puppet_version}-#{mod_name}.json"))
         MultiJson.load(Base64.decode64(encoded_info['content']))
       end
     end
@@ -65,9 +70,12 @@ class Onceover
     # return json from a query whom caches, or from the cache to avoid spamming github
     def query_or_cache(url, params, filepath)
       if File.exist? filepath
+        logger.debug "Using cache: #{filepath}"
         json = read_json_dump(filepath)
       else
+        logger.debug "Making GET request to: #{url}"
         json = github_get(url, params)
+        logger.debug "Caching response to: #{filepath}"
         write_json_dump(filepath, json)
       end
       json
