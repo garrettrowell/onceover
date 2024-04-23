@@ -17,16 +17,17 @@ require 'r10k/module_loader/puppetfile'
 # vm = Onceover::VendoredModules.new
 # puts vm.vendored_references
 # puppetfile = R10K::ModuleLoader::Puppetfile.new(basedir: '.')
-# vm.puppetfile_add_vendored(puppetfile)
-# puts puppetfile.modules.inspect
+# vm.puppetfile_missing_vendored(puppetfile)
+# puts vm.missing_vendored.inspect
 
 class Onceover
   class VendoredModules
 
-    attr_reader :vendored_references
+    attr_reader :vendored_references, :missing_vendored
 
     def initialize
       @puppet_version = Puppet.version
+      @missing_vendored = []
 
       # get the entire file tree of the puppetlabs/puppet-agent repository
       puppet_agent_tree = query_or_cache("https://api.github.com/repos/puppetlabs/puppet-agent/git/trees/#{@puppet_version}", { :recursive => true }, 'files.json')
@@ -43,7 +44,7 @@ class Onceover
 
     # currently expects to be passed a R10K::Puppetfile object.
     # ex: R10K::ModuleLoader::Puppetfile.new(basedir: '.')
-    def puppetfile_add_vendored(puppetfile)
+    def puppetfile_missing_vendored(puppetfile)
       puppetfile.load
       @vendored_references.each do |mod|
         # extract name and slug from url
@@ -52,8 +53,8 @@ class Onceover
         # array of modules whos names match
         existing = puppetfile.modules.select { |e_mod| e_mod.name == mod_name }
         if existing.empty?
-          puppetfile.add_module(mod_slug, {git: mod['url'], ref: mod['ref']})
-          puts "#{mod_name} added into puppetfile"
+          @missing_vendored << {mod_slug => {git: mod['url'], ref: mod['ref']}}
+          puts "#{mod_name} found to be missing"
         else
           puts "#{mod_name} existed in puppetfile. using specified version"
         end
