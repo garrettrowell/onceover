@@ -4,6 +4,7 @@ require 'uri'
 require 'multi_json'
 require 'base64'
 require 'r10k/module_loader/puppetfile'
+require 'onceover/logger'
 
 ### operations
 #
@@ -54,9 +55,9 @@ class Onceover
         existing = puppetfile.modules.select { |e_mod| e_mod.name == mod_name }
         if existing.empty?
           @missing_vendored << {mod_slug => {git: mod['url'], ref: mod['ref']}}
-          puts "#{mod_name} found to be missing"
+          logger.debug "#{mod_name} found to be missing in Puppetfile"
         else
-          puts "#{mod_name} existed in puppetfile. using specified version"
+          logger.debug "#{mod_name} found in Puppetfile. Using the specified version"
         end
       end
     end
