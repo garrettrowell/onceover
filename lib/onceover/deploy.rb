@@ -104,6 +104,10 @@ class Onceover
           puppetfile = R10K::ModuleLoader::Puppetfile.new(basedir: temp_controlrepo)
           vm.puppetfile_missing_vendored(puppetfile)
           unless vm.missing_vendored.empty?
+            missing_slugs = vm.missing_vendored.map do |missing_mod|
+              missing_mod.keys[0]
+            end
+            logger.debug "Adding #{missing_slugs} to #{tmp_puppetfile}"
             modlines = vm.missing_vendored.map do |missing_mod|
               mod_slug = missing_mod.keys[0]
               "mod '#{mod_slug}',\n  git: '#{missing_mod[mod_slug][:git]}',\n  ref: '#{missing_mod[mod_slug][:ref]}'"
