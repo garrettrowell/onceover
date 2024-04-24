@@ -100,7 +100,7 @@ class Onceover
         if auto_vendored
           tmp_puppetfile = File.join(temp_controlrepo, 'Puppetfile')
           tmp_puppetfile_contents = File.read(tmp_puppetfile)
-          vm = Onceover::VendoredModules.new
+          vm = Onceover::VendoredModules.new(repo)
           puppetfile = R10K::ModuleLoader::Puppetfile.new(basedir: temp_controlrepo)
           vm.puppetfile_missing_vendored(puppetfile)
           unless vm.missing_vendored.empty?
