@@ -18,3 +18,10 @@ Feature: Automatically resolve modules vendored with puppet-agent package
     Then the temporary Puppetfile should contain /mod 'puppetlabs-cron_core',\n.*git: 'git@github.com:puppetlabs\/puppetlabs-cron_core.git',\n.*ref: 'refs\/tags\/.*'/
     And I should not see any errors
 
+  Scenario: Auto resolve enabled and cron_core specified in Puppetfile
+    Given existing control repo "vendored"
+    When I run onceover command "run spec --auto_vendored=true" with --puppetfile Puppetfile.cron
+    Then I should see message pattern "cron_core found in Puppetfile. Using the specified version"
+    Then the temporary Puppetfile should contain /mod 'puppetlabs\/cron_core'/
+    And I should not see any errors
+
