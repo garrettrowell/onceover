@@ -59,7 +59,10 @@ class Onceover
         # array of modules whos names match
         existing = puppetfile.modules.select { |e_mod| e_mod.name == mod_name }
         if existing.empty?
-          @missing_vendored << {mod_slug => {git: mod['url'], ref: mod['ref']}}
+          # Change url to https instead of ssh to avoid 'Host key verification failed' errors
+          # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
+          url = mod['url'].gsub('git@github.com:', 'https://github.com/')
+          @missing_vendored << {mod_slug => {git: url, ref: mod['ref']}}
           logger.debug "#{mod_name} found to be missing in Puppetfile"
         else
           logger.debug "#{mod_name} found in Puppetfile. Using the specified version"
