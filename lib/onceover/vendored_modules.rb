@@ -90,7 +90,12 @@ class Onceover
       headers = {Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}
       uri.query = URI.encode_www_form(params) if params
       response = Net::HTTP.get_response(uri, headers)
-      MultiJson.load(response.body) if response.is_a?(Net::HTTPSuccess)
+      case response
+      when Net::HTTPOK # 200
+        MultiJson.load(response.body)
+      else
+        raise "#{response.code} #{response.message}"
+      end
     end
 
     # returns parsed json of file
