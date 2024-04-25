@@ -86,10 +86,14 @@ class Onceover
 
     # given a github url and optional query parameters, return the parsed json body
     def github_get(url, params)
-      uri = URI(url)
-      headers = {Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}
+      uri = URI.parse(url)
       uri.query = URI.encode_www_form(params) if params
-      response = Net::HTTP.get_response(uri, headers)
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = (uri.scheme == 'https')
+      request = Net::HTTP::Get.new(uri.request_uri)
+      request['Accept'] = 'application/vnd.github+json'
+      request['X-GitHub-Api-Version'] = '2022-11-28'
+      response = http.request(request)
       case response
       when Net::HTTPOK # 200
         MultiJson.load(response.body)
