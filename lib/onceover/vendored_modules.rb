@@ -94,11 +94,15 @@ class Onceover
       request['Accept'] = 'application/vnd.github+json'
       request['X-GitHub-Api-Version'] = '2022-11-28'
       response = http.request(request)
+
       case response
       when Net::HTTPOK # 200
         MultiJson.load(response.body)
       else
-        raise "#{response.code} #{response.message}"
+        # Expose the ratelimit response headers
+        # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28#checking-the-status-of-your-rate-limit
+        ratelimit_headers = response.to_hash.select { |k, v| k =~ /x-ratelimit.*/ }
+        raise "#{response.code} #{response.message} #{ratelimit_headers}"
       end
     end
 
