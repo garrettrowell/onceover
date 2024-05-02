@@ -25,22 +25,25 @@ class Onceover
 
     attr_reader :vendored_references, :missing_vendored
 
-    def initialize(repo = Onceover::Controlrepo.new)
+    def initialize(opts = {})
+#    def initialize(repo = Onceover::Controlrepo.new, cachedir = nil)
+      @repo = opts[:repo] || Onceover::Controlrepo.new
+      @cachedir = opts[:cachedir] || File.join(@repo.tempdir, 'vendored_modules')
       @puppet_version = Gem::Version.new(Puppet.version)
       @puppet_major_version = Gem::Version.new(@puppet_version).segments[0]
+      @force_update = opts[:force_update] || false
 
       @missing_vendored = []
 
-      # cache directory for any GET requests
-      @vend_tmpdir = File.join(repo.tempdir, 'vendored_modules')
-      unless File.directory?(@vend_tmpdir)
-        logger.debug "Creating #{@vend_tmpdir}"
-        FileUtils.mkdir_p(@vend_tmpdir)
+      # Create cachedir
+      unless File.directory?(@cachedir)
+        logger.debug "Creating #{@cachedir}"
+        FileUtils.mkdir_p(@cachedir)
       end
 
       # location of user provided caches:
       #   control-repo/spec/vendored_modules/<component>-puppet_agent-<agent version>.json
-      @manual_vendored_dir = File.join(repo.spec_dir, 'vendored_modules')
+      @manual_vendored_dir = File.join(@repo.spec_dir, 'vendored_modules')
 
       # get the entire file tree of the puppetlabs/puppet-agent repository
       # https://docs.github.com/en/rest/git/trees?apiVersion=2022-11-28#get-a-tree
@@ -68,7 +71,7 @@ class Onceover
       # Ideally we want a cache for the version of the puppet agent used in tests
       desired_name = "#{component}-puppet_agent-#{@puppet_version}.json"
       # By default look for any caches created during previous runs
-      cache_file = File.join(@vend_tmpdir, desired_name)
+      cache_file = File.join(@cachedir, desired_name)
 
       # If the user provides their own cache
       if File.directory?(@manual_vendored_dir)
@@ -131,7 +134,7 @@ class Onceover
 
     # return json from a query whom caches, or from the cache to avoid spamming github
     def query_or_cache(url, params, filepath)
-      if File.exist? filepath
+      if (File.exist? filepath) && (@force_update == false)
         logger.debug "Using cache: #{filepath}"
         json = read_json_dump(filepath)
       else
