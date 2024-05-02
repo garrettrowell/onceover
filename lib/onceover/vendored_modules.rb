@@ -1,4 +1,4 @@
-require 'puppet'
+require 'puppet/version'
 require 'net/http'
 require 'uri'
 require 'multi_json'
@@ -27,25 +27,86 @@ class Onceover
     attr_reader :vendored_references, :missing_vendored
 
     def initialize(repo = Onceover::Controlrepo.new)
-      @puppet_version = Puppet.version
+      @puppet_version = Gem::Version.new(Puppet.version)
+      @puppet_major_version = Gem::Version.new(@puppet_version).segments[0]
+
       @missing_vendored = []
 
+      # cache directory for any GET requests
       @vend_tmpdir = File.join(repo.tempdir, 'vendored_modules')
       unless File.directory?(@vend_tmpdir)
         logger.debug "Creating #{@vend_tmpdir}"
         FileUtils.mkdir_p(@vend_tmpdir)
       end
+
+      # location of user provided caches:
+      #   control-repo/spec/vendored_modules/<component>-puppet_agent-<agent version>.json
+      @manual_vendored_dir = File.join(repo.spec_dir, 'vendored_modules')
+
       # get the entire file tree of the puppetlabs/puppet-agent repository
-      puppet_agent_tree = query_or_cache("https://api.github.com/repos/puppetlabs/puppet-agent/git/trees/#{@puppet_version}", { :recursive => true }, File.join(@vend_tmpdir, "puppet_agent_tree-#{@puppet_version}.json"))
+      # https://docs.github.com/en/rest/git/trees?apiVersion=2022-11-28#get-a-tree
+      puppet_agent_tree = query_or_cache(
+        "https://api.github.com/repos/puppetlabs/puppet-agent/git/trees/#{@puppet_version}",
+        { :recursive => true },
+        component_cache('repo_tree')
+      )
       # get only the module-puppetlabs-<something>_core.json component files
       vendored_components =  puppet_agent_tree['tree'].select { |file| /configs\/components\/module-puppetlabs-\w+\.json/.match(file['path']) }
       # get the contents of each component file
+      # https://docs.github.com/en/rest/git/blobs?apiVersion=2022-11-28#get-a-blob
       @vendored_references = vendored_components.map do |component|
         mod_slug = component['path'].match(/.*(puppetlabs-\w+).json$/)[1]
         mod_name = mod_slug.match(/puppetlabs-(\w+)/)[1]
-        encoded_info = query_or_cache(component['url'], nil, File.join(@vend_tmpdir, "puppet-#{@puppet_version}-#{mod_name}.json"))
+        encoded_info = query_or_cache(
+          component['url'],
+          nil,
+          component_cache(mod_name)
+        )
         MultiJson.load(Base64.decode64(encoded_info['content']))
       end
+    end
+
+    def component_cache(component)
+      # Ideally we want a cache for the version of the puppet agent used in tests
+      desired_name = "#{component}-puppet_agent-#{@puppet_version}.json"
+      # By default look for any caches created during previous runs
+      cache_file = File.join(@vend_tmpdir, desired_name)
+
+      # If the user provides their own cache
+      if File.directory?(@manual_vendored_dir)
+        # Check for any '<component>-puppet_agent-<puppet version>.json' files
+        dg = Dir.glob(File.join(@manual_vendored_dir, "#{component}-puppet_agent*"))
+        # Check if there are multiple versions of the component cache
+        if dg.size > 1
+          # If there is the same version supplied as whats being tested against use that
+          if dg.any? { |s| s[desired_name] }
+            cache_file = File.join(@manual_vendored_dir, desired_name)
+          # If there are any with the same major version, use the latest supplied
+          elsif dg.any? { |s| s["#{component}-puppet_agent-#{@puppet_major_version}"] }
+            maj_match = dg.select { |f| /#{component}-puppet_agent-#{@puppet_major_version}.\d+\.\d+\.json/.match(f) }
+            maj_match.each { |f| cache_file = f if version_from_file(f) >= version_from_file(cache_file) }
+          # otherwise just use the latest supplied
+          else
+            dg.each { |f| cache_file = f if version_from_file(f) >= version_from_file(cache_file) }
+          end
+        # if there is only one use that
+        elsif dg.size == 1
+          cache_file = dg[0]
+        end
+      end
+
+      # Warn the user if cached version does not match whats being used to test
+      cache_version = version_from_file(cache_file)
+      if cache_version != @puppet_version
+        logger.warn "Cache for #{component} is for puppet_agent #{cache_version}, while you are testing against puppet_agent #{@puppet_version}. Consider updating your cache to ensure consistent behavior in your tests"
+      end
+
+      cache_file
+    end
+
+    def version_from_file(cache_file)
+      version_regex = /.*-puppet_agent-(\d+\.\d+\.\d+)\.json/
+      Gem::Version.new(version_regex.match(cache_file)[1])
     end
 
     # currently expects to be passed a R10K::Puppetfile object.
