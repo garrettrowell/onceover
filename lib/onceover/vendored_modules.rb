@@ -2,7 +2,6 @@ require 'puppet/version'
 require 'net/http'
 require 'uri'
 require 'multi_json'
-require 'base64'
 require 'r10k/module_loader/puppetfile'
 require 'onceover/logger'
 
@@ -57,12 +56,11 @@ class Onceover
       @vendored_references = vendored_components.map do |component|
         mod_slug = component['path'].match(/.*(puppetlabs-\w+).json$/)[1]
         mod_name = mod_slug.match(/puppetlabs-(\w+)/)[1]
-        encoded_info = query_or_cache(
+        query_or_cache(
           component['url'],
           nil,
           component_cache(mod_name)
         )
-        MultiJson.load(Base64.decode64(encoded_info['content']))
       end
     end
 
@@ -152,7 +150,7 @@ class Onceover
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = (uri.scheme == 'https')
       request = Net::HTTP::Get.new(uri.request_uri)
-      request['Accept'] = 'application/vnd.github+json'
+      request['Accept'] = 'application/vnd.github.raw+json'
       request['X-GitHub-Api-Version'] = '2022-11-28'
       response = http.request(request)
 
