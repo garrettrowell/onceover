@@ -112,7 +112,7 @@ class Onceover
               mod_slug = missing_mod.keys[0]
               "mod '#{mod_slug}',\n  git: '#{missing_mod[mod_slug][:git]}',\n  ref: '#{missing_mod[mod_slug][:ref]}'"
             end.join("\n")
-            File.write(tmp_puppetfile, tmp_puppetfile_contents + "\n# Unmanaged Vendored Modules\n" + modlines)
+            File.write(tmp_puppetfile, tmp_puppetfile_contents + "\n# Onceover Managed Vendored Modules\n" + modlines)
           end
         end
       end
