@@ -26,14 +26,16 @@ class Onceover
     attr_reader :vendored_references, :missing_vendored
 
     def initialize(opts = {})
-#    def initialize(repo = Onceover::Controlrepo.new, cachedir = nil)
       @repo = opts[:repo] || Onceover::Controlrepo.new
       @cachedir = opts[:cachedir] || File.join(@repo.tempdir, 'vendored_modules')
       @puppet_version = Gem::Version.new(Puppet.version)
-      @puppet_major_version = Gem::Version.new(@puppet_version).segments[0]
+      @puppet_major_version = Gem::Version.new(@puppet_version.segments[0])
       @force_update = opts[:force_update] || false
 
       @missing_vendored = []
+
+      # This only applies to puppet >= 6 so bail early
+      raise 'Auto resolving vendored modules only applies to puppet versions >= 6' unless @puppet_major_version >= Gem::Version.new('6')
 
       # Create cachedir
       unless File.directory?(@cachedir)
@@ -41,20 +43,20 @@ class Onceover
         FileUtils.mkdir_p(@cachedir)
       end
 
-      # location of user provided caches:
+      # Location of user provided caches:
       #   control-repo/spec/vendored_modules/<component>-puppet_agent-<agent version>.json
       @manual_vendored_dir = File.join(@repo.spec_dir, 'vendored_modules')
 
-      # get the entire file tree of the puppetlabs/puppet-agent repository
+      # Get the entire file tree of the puppetlabs/puppet-agent repository
       # https://docs.github.com/en/rest/git/trees?apiVersion=2022-11-28#get-a-tree
       puppet_agent_tree = query_or_cache(
         "https://api.github.com/repos/puppetlabs/puppet-agent/git/trees/#{@puppet_version}",
         { :recursive => true },
         component_cache('repo_tree')
       )
-      # get only the module-puppetlabs-<something>_core.json component files
+      # Get only the module-puppetlabs-<something>_core.json component files
       vendored_components =  puppet_agent_tree['tree'].select { |file| /configs\/components\/module-puppetlabs-\w+\.json/.match(file['path']) }
-      # get the contents of each component file
+      # Get the contents of each component file
       # https://docs.github.com/en/rest/git/blobs?apiVersion=2022-11-28#get-a-blob
       @vendored_references = vendored_components.map do |component|
         mod_slug = component['path'].match(/.*(puppetlabs-\w+).json$/)[1]
@@ -86,11 +88,11 @@ class Onceover
           elsif dg.any? { |s| s["#{component}-puppet_agent-#{@puppet_major_version}"] }
             maj_match = dg.select { |f| /#{component}-puppet_agent-#{@puppet_major_version}.\d+\.\d+\.json/.match(f) }
             maj_match.each { |f| cache_file = f if version_from_file(f) >= version_from_file(cache_file) }
-          # otherwise just use the latest supplied
+          # Otherwise just use the latest supplied
           else
             dg.each { |f| cache_file = f if version_from_file(f) >= version_from_file(cache_file) }
           end
-        # if there is only one use that
+        # If there is only one use that
         elsif dg.size == 1
           cache_file = dg[0]
         end
@@ -110,15 +112,15 @@ class Onceover
       Gem::Version.new(version_regex.match(cache_file)[1])
     end
 
-    # currently expects to be passed a R10K::Puppetfile object.
+    # Currently expects to be passed a R10K::Puppetfile object.
     # ex: R10K::ModuleLoader::Puppetfile.new(basedir: '.')
     def puppetfile_missing_vendored(puppetfile)
       puppetfile.load
       @vendored_references.each do |mod|
-        # extract name and slug from url
+        # Extract name and slug from url
         mod_slug = mod['url'].match(/.*(puppetlabs-\w+)\.git/)[1]
         mod_name = mod_slug.match(/^puppetlabs-(\w+)$/)[1]
-        # array of modules whos names match
+        # Array of modules whos names match
         existing = puppetfile.modules.select { |e_mod| e_mod.name == mod_name }
         if existing.empty?
           # Change url to https instead of ssh to allow anonymous git clones
@@ -132,7 +134,7 @@ class Onceover
       end
     end
 
-    # return json from a query whom caches, or from the cache to avoid spamming github
+    # Return json from a query whom caches, or from the cache to avoid spamming github
     def query_or_cache(url, params, filepath)
       if (File.exist? filepath) && (@force_update == false)
         logger.debug "Using cache: #{filepath}"
@@ -146,7 +148,7 @@ class Onceover
       json
     end
 
-    # given a github url and optional query parameters, return the parsed json body
+    # Given a github url and optional query parameters, return the parsed json body
     def github_get(url, params)
       uri = URI.parse(url)
       uri.query = URI.encode_www_form(params) if params
@@ -168,12 +170,12 @@ class Onceover
       end
     end
 
-    # returns parsed json of file
+    # Returns parsed json of file
     def read_json_dump(filepath)
       MultiJson.load(File.read(filepath))
     end
 
-    # writes json to a file
+    # Writes json to a file
     def write_json_dump(filepath, json_data)
       File.write(filepath, MultiJson.dump(json_data))
     end
