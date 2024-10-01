@@ -907,7 +907,7 @@ Notice that the symlinks are not the ones that we provided in `environment.conf`
 
 #### generate_vendor_cache
 
-`bundle exec rake generate_fixtures`
+`bundle exec rake generate_vendor_cache`
 
 This task will query Github's API to determine the versions of the vendored modules in use by the version of the puppet agent you are testing against, and cache that information in `control-repo/spec/vendored_modules`. This way your pipelines won't need to reach out for this information each time Onceover is ran with `auto_vendored` enabled.
 
