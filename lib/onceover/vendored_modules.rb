@@ -75,26 +75,28 @@ class Onceover
       # By default look for any caches created during previous runs
       cache_file = File.join(@cachedir, desired_name)
 
-      # If the user provides their own cache
-      if File.directory?(@manual_vendored_dir)
-        # Check for any '<component>-puppet_agent-<puppet version>.json' files
-        dg = Dir.glob(File.join(@manual_vendored_dir, "#{component}-puppet_agent*"))
-        # Check if there are multiple versions of the component cache
-        if dg.size > 1
-          # If there is the same version supplied as whats being tested against use that
-          if dg.any? { |s| s[desired_name] }
-            cache_file = File.join(@manual_vendored_dir, desired_name)
-          # If there are any with the same major version, use the latest supplied
-          elsif dg.any? { |s| s["#{component}-puppet_agent-#{@puppet_major_version}"] }
-            maj_match = dg.select { |f| /#{component}-puppet_agent-#{@puppet_major_version}.\d+\.\d+\.json/.match(f) }
-            maj_match.each { |f| cache_file = f if version_from_file(f) >= version_from_file(cache_file) }
-          # Otherwise just use the latest supplied
-          else
-            dg.each { |f| cache_file = f if version_from_file(f) >= version_from_file(cache_file) }
+      unless @force_update
+        # If the user provides their own cache
+        if File.directory?(@manual_vendored_dir)
+          # Check for any '<component>-puppet_agent-<puppet version>.json' files
+          dg = Dir.glob(File.join(@manual_vendored_dir, "#{component}-puppet_agent*"))
+          # Check if there are multiple versions of the component cache
+          if dg.size > 1
+            # If there is the same version supplied as whats being tested against use that
+            if dg.any? { |s| s[desired_name] }
+              cache_file = File.join(@manual_vendored_dir, desired_name)
+            # If there are any with the same major version, use the latest supplied
+            elsif dg.any? { |s| s["#{component}-puppet_agent-#{@puppet_major_version}"] }
+              maj_match = dg.select { |f| /#{component}-puppet_agent-#{@puppet_major_version}.\d+\.\d+\.json/.match(f) }
+              maj_match.each { |f| cache_file = f if version_from_file(f) >= version_from_file(cache_file) }
+            # Otherwise just use the latest supplied
+            else
+              dg.each { |f| cache_file = f if version_from_file(f) >= version_from_file(cache_file) }
+            end
+          # If there is only one use that
+          elsif dg.size == 1
+            cache_file = dg[0]
           end
-        # If there is only one use that
-        elsif dg.size == 1
-          cache_file = dg[0]
         end
       end
 
