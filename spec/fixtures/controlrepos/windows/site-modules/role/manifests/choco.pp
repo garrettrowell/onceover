@@ -1,6 +1,9 @@
 # Choco
 class role::choco {
-  include ::chocolatey
+  class { 'chocolatey':
+    chocolatey_version => '2.3.0',
+  }
+
 
   package { 'winzip':
     ensure   => 'present',
