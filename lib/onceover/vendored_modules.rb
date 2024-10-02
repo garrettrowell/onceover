@@ -88,7 +88,15 @@ class Onceover
             # If there are any with the same major version, use the latest supplied
             elsif dg.any? { |s| s["#{component}-puppet_agent-#{@puppet_major_version}"] }
               maj_match = dg.select { |f| /#{component}-puppet_agent-#{@puppet_major_version}.\d+\.\d+\.json/.match(f) }
-              maj_match.each { |f| cache_file = f if version_from_file(f) >= version_from_file(cache_file) }
+              maj_match.each do |f|
+                if (version_from_file(cache_file) == version_from_file(desired_name))
+                  # if the current cache version matches the desired version, use the first matching major version in user cache
+                  cache_file = f
+                elsif (version_from_file(f) >= version_from_file(cache_file))
+                  # if there are multiple major version matches in user cache, use the latest
+                  cache_file = f
+                end
+              end
             # Otherwise just use the latest supplied
             else
               dg.each { |f| cache_file = f if version_from_file(f) >= version_from_file(cache_file) }
